@@ -7,6 +7,55 @@ same process, through a custom in-process `IServer`, not a loopback HTTP server.
 This is a custom adapter, not an Azure Functions controller-routing feature.
 The official HTTP integration still owns the worker's HTTP ingress server.
 
+## Why this package exists
+
+Azure Functions provides a serverless compute platform with managed hosting
+and event-driven scaling. It is an attractive place to run an HTTP API without
+managing a dedicated web server, but its .NET programming model is not the same
+as an ASP.NET Core web application.
+
+With the default Functions SDK, HTTP endpoints are function methods selected
+through HTTP trigger metadata. Routing, parameter binding and the invocation
+pipeline follow Functions conventions rather than the controller and minimal
+API conventions of ASP.NET Core. Existing web APIs and middleware therefore
+cannot simply be moved into a Function app unchanged.
+
+Microsoft's
+[ASP.NET Core integration](https://learn.microsoft.com/en-us/azure/azure-functions/dotnet-isolated-process-guide#aspnet-core-integration)
+narrows that gap. It provides familiar HTTP types such as `HttpRequest`,
+`HttpResponse` and `IActionResult`, along with MVC serialization and request-body
+binding support. However, it does not expose ASP.NET Core endpoint routing or
+the application middleware pipeline. Returning an action result from a function
+does not make that function an MVC controller action.
+
+OpenAPI generation also follows a different model. Functions-specific tooling
+describes function triggers and their metadata; it is not a drop-in replacement
+for the endpoint descriptions and conventions used by ASP.NET Core controllers
+and minimal APIs. Keeping an API in the ASP.NET Core model lets applications
+use its endpoint metadata and choose compatible OpenAPI tooling, rather than
+maintaining a separate Functions-specific API description. This library does
+not configure or generate OpenAPI documents itself.
+
+The project is partly inspired by
+[AWS Lambda Web Adapter](https://github.com/aws/aws-lambda-web-adapter), which
+lets conventional HTTP web applications run on Lambda. FunctionsWebAppHost
+pursues a similar goal with a different implementation: instead of forwarding
+requests to a listening web server, it supplies a custom, in-process `IServer`
+that hosts an ASP.NET Core `WebApplication`. A catch-all HTTP-triggered function
+dispatches requests into that application's routing and middleware pipeline.
+
+The aim is to combine Functions hosting with the familiar ASP.NET Core
+application stack: controllers, minimal APIs, model binding, dependency
+injection and middleware. Functions still owns invocation and ingress, and
+the adapter remains subject to the transport and feature limitations described
+below. It is not a replacement for every capability of a standalone ASP.NET
+Core server.
+
+**There are two application stacks in the same process, each with its own DI
+container.** Services registered for other Functions are not shared with the
+web app. Register web app services separately; registering a singleton in both
+stacks creates a separate instance in each.
+
 ## Usage
 
 Reference [FunctionsWebAppHost.csproj](./src/FunctionsWebAppHost/FunctionsWebAppHost.csproj)
@@ -75,6 +124,35 @@ explicit integration call is compatible; it is unnecessary in the minimal setup.
 Both callbacks are required. Repeated `HostWebApp` registration is rejected:
 one hosted application per worker is supported.
 
+## Two application stacks, separate DI
+
+```text
+Functions worker (Functions DI container)
+  -> HttpTrigger -> IWebAppHost.DispatchAsync
+  -> ASP.NET Core WebApplication (web app DI container)
+```
+
+The Functions worker and hosted web app run in the same process, but have
+independent dependency injection containers:
+
+- `builder.Services` configures services for Functions, including any other
+  HTTP, timer or queue-triggered functions.
+- `webBuilder.Services` inside `HostWebApp` configures services for the web app's
+  controllers, minimal APIs and middleware.
+- Registrations are not copied or shared. A service registered only for
+  Functions is not available in the web app.
+- A singleton is singleton **per container**, not per process. Registering the
+  same singleton type in both stacks creates two instances when resolved.
+  Request scopes are also separate.
+
+The web app inherits worker configuration values through `IConfiguration`,
+but this does not share its DI container or services. If you deliberately
+register the same externally created instance in both containers, its creator
+must manage its lifetime and disposal.
+
+The worker's HTTP server and routes remain separate from the web app's
+in-process server and ASP.NET Core routes.
+
 ## Startup responsibilities
 
 | Always installed/owned by the library | Configurable per application |
@@ -104,24 +182,6 @@ resources are disposed on failure; cleanup failures are logged without replacing
 the original startup error. Shutdown rejects new requests and drains active
 requests within the supplied shutdown cancellation token.
 
-## Hosting and DI boundary
-
-```text
-Functions worker (official ingress server and worker services)
-  -> HttpTrigger -> IWebAppHost.DispatchAsync
-  -> inner WebApplication (in-process server and application services)
-```
-
-The hosts have separate service providers in the same .NET runtime. The library
-does not replace worker `IServer`, copy worker registrations, or fall back to
-worker DI. Request scopes and ambient application contexts are isolated from
-the worker. Outer Functions endpoints/route values are not inherited.
-
-Reusing a service-registration helper in both hosts creates separate singleton
-instances. Explicitly sharing an externally owned singleton instance is possible;
-its creator remains responsible for disposal. Worker user secrets/configuration
-are inherited through `IConfiguration`, not through sharing the provider.
-
 ## HTTP behavior and limits
 
 The adapter maps the worker-exposed method, scheme, protocol, host, path/base,
@@ -141,7 +201,6 @@ transport. Small upload chunks may be coalesced; applications should not rely
 on receiving a response before the upload completes. The in-process adapter
 does not remove these transport constraints.
 
-Azure-hosted behavior, including Flex Consumption, has not been validated.
 Swagger/OpenAPI configuration belongs to the consuming application.
 
 ## Build and test
