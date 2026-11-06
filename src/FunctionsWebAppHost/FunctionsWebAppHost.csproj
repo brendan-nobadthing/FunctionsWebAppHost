@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0-alpha.1</Version>
+    <PackageId>FunctionsWebAppHost</PackageId>
+    <Authors>Brendan Richards</Authors>
+    <Description>Host an ASP.NET Core WebApplication inside an Azure Functions isolated worker using an in-process HTTP adapter.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/brendan-nobadthing/FunctionsWebAppHost</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/brendan-nobadthing/FunctionsWebAppHost</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>azure-functions;aspnetcore;isolated-worker;webapplication</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

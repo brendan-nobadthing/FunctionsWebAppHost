@@ -1,0 +1,46 @@
+@baseUrl = http://localhost:7101
+
+### Root
+GET {{baseUrl}}/
+
+### Controller binding
+GET {{baseUrl}}/controller/42?message=controller
+
+### Controller JSON binding
+POST {{baseUrl}}/controller/echo
+Content-Type: application/json
+
+{"message":"controller"}
+
+### Minimal route/query binding
+GET {{baseUrl}}/minimal/42?message=minimal
+
+### Minimal JSON binding
+POST {{baseUrl}}/minimal/echo
+Content-Type: application/json
+
+{"message":"minimal"}
+
+### Custom HTTP status/header/cookies
+GET {{baseUrl}}/response
+
+### Binary response
+GET {{baseUrl}}/binary
+
+### Delayed streamed response
+GET {{baseUrl}}/stream
+
+### Upload echo
+POST {{baseUrl}}/stream/echo
+Content-Type: application/octet-stream
+
+streamed bytes
+
+### Application error policy
+GET {{baseUrl}}/error
+
+### Unknown route
+GET {{baseUrl}}/missing
+
+### Unsupported method
+DELETE {{baseUrl}}/controller/42
