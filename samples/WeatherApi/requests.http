@@ -1,0 +1,15 @@
+@baseUrl = http://localhost:7102
+
+### Five-day sample forecast
+GET {{baseUrl}}/weatherforecast
+Accept: application/json
+
+### Generated OpenAPI document (Development only)
+GET {{baseUrl}}/openapi/v1.json
+Accept: application/json
+
+### Scalar interactive documentation (Development only)
+GET {{baseUrl}}/scalar/v1
+
+### Unknown route
+GET {{baseUrl}}/missing

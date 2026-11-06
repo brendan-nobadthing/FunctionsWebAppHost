@@ -1,0 +1,8 @@
+{
+  "subscriptionId": "<subscription-id>",
+  "resourceGroup": "<existing-resource-group>",
+  "location": "<flex-consumption-region>",
+  "deploymentName": "fwh-diagnostics-demo",
+  "instanceMemoryMB": 2048,
+  "maximumInstanceCount": 40
+}

@@ -5,6 +5,7 @@ artifacts/
 .idea/
 .DS_Store
 **/local.settings.json
+samples/*/deploy.config.json
 **/TestResults/
 *.user
 *.suo

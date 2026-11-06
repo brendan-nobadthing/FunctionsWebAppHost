@@ -1,0 +1,9 @@
+{
+  "subscriptionId": "<subscription-id>",
+  "resourceGroup": "<existing-resource-group>",
+  "location": "<flex-consumption-region>",
+  "deploymentName": "fwh-weatherapi-demo",
+  "instanceMemoryMB": 2048,
+  "maximumInstanceCount": 40,
+  "enableApiDocumentation": true
+}

@@ -1,11 +1,11 @@
-"""Verify a running adapter through Core Tools using only Python's standard library."""
+"""Verify the sample locally or in Azure using only Python's standard library."""
 
 import argparse
 import concurrent.futures
 import datetime
+import hashlib
 import http.client
 import json
-import threading
 import time
 import urllib.error
 import urllib.parse
@@ -73,59 +73,41 @@ def verify_response_stream(base_url):
     print("PASS incremental response arrivals:", ", ".join(f"{value:.3f}s" for value in arrivals))
 
 
-def probe_upload(base_url, first_chunk_bytes):
+def probe_upload(base_url):
+    chunk_bytes = 65536
     target = urllib.parse.urlsplit(base_url)
     connection_type = http.client.HTTPSConnection if target.scheme == "https" else http.client.HTTPConnection
-    connection = connection_type(target.hostname, target.port, timeout=10)
-    connection.putrequest("POST", target.path.rstrip("/") + "/stream/echo")
+    connection = connection_type(target.hostname, target.port, timeout=60)
+    connection.putrequest("POST", target.path.rstrip("/") + "/stream/upload")
     connection.putheader("Transfer-Encoding", "chunked")
     connection.putheader("Content-Type", "application/octet-stream")
     connection.endheaders()
-    print("Upload first chunk at", datetime.datetime.now(datetime.timezone.utc).isoformat())
-    first = b"x" * (first_chunk_bytes - 1) + b"\n"
-    connection.send(f"{len(first):x}\r\n".encode() + first + b"\r\n")
-    early = threading.Event()
-    errors = []
-    received = []
-
-    def receive():
-        try:
-            response = connection.getresponse()
-            assert response.status == 200, response.status
-            received.append(response.readline())
-            early.set()
-            received.append(response.read())
-        except Exception as error:
-            errors.append(error)
-            early.set()
-
-    reader = threading.Thread(target=receive, daemon=True)
-    reader.start()
-    early_response = early.wait(2)
-    print("Upload final chunk and EOF at", datetime.datetime.now(datetime.timezone.utc).isoformat())
-    connection.send(b"7\r\nsecond\n\r\n0\r\n\r\n")
-    reader.join(12)
-    connection.close()
-    assert not reader.is_alive(), "Upload probe timed out"
-    if errors:
-        raise errors[0]
-    assert b"".join(received) == first + b"second\n", "Upload echo content differs"
-    print("PASS upload echo content")
-    print("OBSERVATION response before upload EOF:", early_response)
-    print("Compare UploadProbe server timestamps to the producer timestamps above.")
-    if not early_response:
-        print("LIMITATION: this transport did not deliver a duplex response before upload completion.")
+    print("UPLOAD TEST: 2 chunks of 64 KiB, one second apart")
+    chunks = [bytes([ord("a") + index]) * (chunk_bytes - 1) + b"\n" for index in range(2)]
+    try:
+        for index, chunk in enumerate(chunks, 1):
+            if index > 1:
+                time.sleep(1)
+            connection.send(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n")
+            print(f"Upload chunk {index}/{len(chunks)} sent at", datetime.datetime.now(datetime.timezone.utc).isoformat())
+        print("Upload EOF sent at", datetime.datetime.now(datetime.timezone.utc).isoformat())
+        connection.send(b"0\r\n\r\n")
+        with connection.getresponse() as response:
+            assert response.status == 200, (response.status, response.read())
+            result = json.load(response)
+        assert result["bytesReceived"] == len(chunks) * chunk_bytes, result
+        assert result["sha256"] == hashlib.sha256(b"".join(chunks)).hexdigest(), result
+    finally:
+        connection.close()
+    print(f"PASS upload file byte count and SHA-256: {len(chunks) * chunk_bytes} bytes")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://localhost:7099")
-    parser.add_argument("--upload-only", action="store_true", help="Also usable against the separate direct-trigger control")
-    parser.add_argument("--upload-bytes", type=int, default=6, help="Size of first upload chunk")
+    parser.add_argument("--upload-only", action="store_true", help="Run only the upload integrity test")
     options = parser.parse_args()
-    if options.upload_bytes < 1:
-        parser.error("--upload-bytes must be positive")
     if not options.upload_only:
         verify_responses(options.base_url.rstrip("/"))
         verify_response_stream(options.base_url.rstrip("/"))
-    probe_upload(options.base_url.rstrip("/"), options.upload_bytes)
+    probe_upload(options.base_url.rstrip("/"))

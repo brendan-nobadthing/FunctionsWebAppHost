@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,7 +31,7 @@ public static class ProbeEndpoints
         app.MapGet("/binary", (CancellationToken cancellationToken) =>
             TypedResults.Bytes(new byte[] { 0, 1, 127, 128, 255 }, "application/octet-stream"));
         app.MapGet("/stream", StreamResponseAsync);
-        app.MapPost("/stream/echo", StreamEchoAsync);
+        app.MapPost("/stream/upload", StreamUploadAsync);
         app.MapGet("/error", (RequestDelegate)(_ => throw new InvalidOperationException("Intentional adapter probe failure.")));
     }
 
@@ -48,20 +49,35 @@ public static class ProbeEndpoints
         }
     }
 
-    private static async Task StreamEchoAsync(
+    private static async Task StreamUploadAsync(
         HttpContext context, ILoggerFactory loggerFactory, CancellationToken cancellationToken)
     {
         var logger = loggerFactory.CreateLogger("UploadProbe");
-        context.Response.ContentType = "application/octet-stream";
-        var buffer = new byte[4096];
-        int count;
-        while ((count = await context.Request.Body.ReadAsync(buffer, cancellationToken)) > 0)
+        logger.LogInformation(
+            "Upload endpoint entered at {Time:O}; before first body read; trace {TraceId}",
+            DateTimeOffset.UtcNow, context.TraceIdentifier);
+        long bytesReceived;
+        string sha256;
+        var path = Path.Combine(Path.GetTempPath(), $"fwh-upload-{Guid.NewGuid():N}.tmp");
+        await using (var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite,
+            FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.DeleteOnClose))
         {
-            logger.LogInformation("Consumed {Count} upload bytes at {Time}; request EOF not yet observed",
-                count, DateTimeOffset.UtcNow);
-            await context.Response.BodyWriter.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
-            await context.Response.BodyWriter.FlushAsync(cancellationToken);
+            var buffer = new byte[4096];
+            int count;
+            while ((count = await context.Request.Body.ReadAsync(buffer, cancellationToken)) > 0)
+            {
+                logger.LogInformation("Consumed {Count} upload bytes at {Time:O}; request EOF not yet observed; trace {TraceId}",
+                    count, DateTimeOffset.UtcNow, context.TraceIdentifier);
+                await file.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+            }
+            logger.LogInformation("Upload EOF observed at {Time:O}; trace {TraceId}",
+                DateTimeOffset.UtcNow, context.TraceIdentifier);
+            bytesReceived = file.Length;
+            file.Position = 0;
+            sha256 = Convert.ToHexString(await SHA256.HashDataAsync(file, cancellationToken)).ToLowerInvariant();
         }
-        logger.LogInformation("Upload EOF observed at {Time}", DateTimeOffset.UtcNow);
+        logger.LogInformation("Upload temporary file deleted at {Time:O}; trace {TraceId}",
+            DateTimeOffset.UtcNow, context.TraceIdentifier);
+        await context.Response.WriteAsJsonAsync(new { bytesReceived, sha256 }, cancellationToken);
     }
 }

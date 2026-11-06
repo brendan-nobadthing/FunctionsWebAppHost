@@ -30,8 +30,8 @@ GET {{baseUrl}}/binary
 ### Delayed streamed response
 GET {{baseUrl}}/stream
 
-### Upload echo
-POST {{baseUrl}}/stream/echo
+### Upload to temporary file; receive byte count and SHA-256 after deletion
+POST {{baseUrl}}/stream/upload
 Content-Type: application/octet-stream
 
 streamed bytes

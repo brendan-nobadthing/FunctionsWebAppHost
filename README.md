@@ -63,7 +63,7 @@ from your Function app, or install the NuGet package after its first release.
 The library targets `net10.0`, references `Microsoft.AspNetCore.App`, and depends
 on the isolated Worker and HTTP ASP.NET Core integration packages.
 The consuming executable needs Functions build tooling;
-the [sample app](./samples/FunctionsWebAppHostTest/) uses
+the [weather sample](./samples/WeatherApi/) uses
 `Azure.Functions.Sdk/1.0.0`.
 
 ```csharp
@@ -126,11 +126,9 @@ one hosted application per worker is supported.
 
 ## Two application stacks, separate DI
 
-```text
-Functions worker (Functions DI container)
-  -> HttpTrigger -> IWebAppHost.DispatchAsync
-  -> ASP.NET Core WebApplication (web app DI container)
-```
+![Application architecture: separate Function App and ASP.NET Core Web Application stacks with request dispatch from the Azure Functions Host.](./docs/architecture.svg)
+
+The function forwards the request through `IWebAppHost.DispatchAsync`.
 
 The Functions worker and hosted web app run in the same process, but have
 independent dependency injection containers:
@@ -196,12 +194,27 @@ assumed to be independently verified original-client information.
 WebSockets, HTTP upgrades, trailers and TLS-specific features are not adapted.
 This is not a complete replacement for every Kestrel capability.
 
-Response streaming and incremental request reads depend on the Functions
-transport. Small upload chunks may be coalesced; applications should not rely
-on receiving a response before the upload completes. The in-process adapter
-does not remove these transport constraints.
+Incoming requests should be treated as buffered in deployed .NET isolated
+Function apps. In our Azure tests, the full request body was received before the
+HTTP-trigger method ran. Both the function's `HttpRequest` and the hosted web
+app's request expose input streams, but those streams access an already-buffered
+body, not incremental delivery from the client.
+Local Core Tools tests can read uploads incrementally; do not rely on that
+behavior in Azure.
 
-Swagger/OpenAPI configuration belongs to the consuming application.
+For background on the host/worker inter-process limitations, see
+[Azure/azure-functions-dotnet-worker#1317](https://github.com/Azure/azure-functions-dotnet-worker/issues/1317).
+It describes the original gRPC request/response representation and the team's
+move toward a reverse-proxy model exposing the actual HTTP request.
+The related
+[HTTP model enhancements epic (Azure/azure-functions-dotnet-worker#1387)](https://github.com/Azure/azure-functions-dotnet-worker/issues/1387)
+details the separate HTTP payload and gRPC invocation paths.
+
+This library enables ASP.NET Core pipelines, not the full capabilities of
+Kestrel, and cannot remove these upstream transport constraints.
+
+Response streaming was verified locally and in Azure: flushed response chunks
+arrived separately before response completion.
 
 ## Build and test
 
@@ -220,7 +233,9 @@ documents Core Tools ingress and streaming checks.
 ## Repository and packages
 
 - [Library source](./src/FunctionsWebAppHost/)
+- [Minimal weather API with OpenAPI and Scalar](./samples/WeatherApi/)
 - [Controllers and minimal APIs sample](./samples/FunctionsWebAppHostTest/)
+- [Deploy samples to Azure](./samples/infra/README.md)
 - [Tests](./tests/FunctionsWebAppHost.Tests/)
 - [Contributing and NuGet publishing](./CONTRIBUTING.md)
 

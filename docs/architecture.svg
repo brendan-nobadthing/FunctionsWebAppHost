@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="470" viewBox="0 0 1000 470" role="img" aria-labelledby="title description">
+  <title id="title">FunctionsWebAppHost application architecture</title>
+  <desc id="description">An Azure Functions Host outside the isolated worker process sends a request to an HTTP-triggered function. The function dispatches it through IWebAppHost.DispatchAsync to ASP.NET Core controllers and minimal APIs. The Function App and Web Application have separate configuration and dependency injection services.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#334155"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #0f172a; font-size: 15px; }
+      .heading { font-size: 17px; font-weight: 600; }
+      .dependency { fill: #fff; stroke: #94a3b8; }
+      .handler { fill: #e0f2fe; stroke: #0284c7; }
+      .request { fill: none; stroke: #334155; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1000" height="470" fill="#fff"/>
+  <rect x="16" y="16" width="968" height="346" rx="10" fill="#f8fafc" stroke="#64748b"/>
+  <text x="36" y="42" class="heading">Application (isolated worker process)</text>
+
+  <rect x="36" y="58" width="450" height="284" rx="8" fill="#eff6ff" stroke="#94a3b8"/>
+  <text x="56" y="86" class="heading">Function App</text>
+  <rect x="224" y="106" width="238" height="34" rx="5" class="dependency"/>
+  <text x="343" y="128" text-anchor="middle">Configuration</text>
+  <rect x="224" y="150" width="238" height="34" rx="5" class="dependency"/>
+  <text x="343" y="172" text-anchor="middle">Services (DI)</text>
+  <rect x="80" y="266" width="350" height="46" rx="6" class="handler"/>
+  <text x="255" y="295" text-anchor="middle">HTTP-triggered function</text>
+
+  <rect x="514" y="58" width="450" height="284" rx="8" fill="#f0fdf4" stroke="#94a3b8"/>
+  <text x="534" y="86" class="heading">ASP.NET Core Web Application</text>
+  <rect x="702" y="106" width="238" height="34" rx="5" class="dependency"/>
+  <text x="821" y="128" text-anchor="middle">Configuration</text>
+  <rect x="702" y="150" width="238" height="34" rx="5" class="dependency"/>
+  <text x="821" y="172" text-anchor="middle">Services (DI)</text>
+  <rect x="702" y="194" width="238" height="34" rx="5" class="dependency"/>
+  <text x="821" y="216" text-anchor="middle">ASP.NET middleware, routing</text>
+  <rect x="558" y="266" width="354" height="46" rx="6" class="handler"/>
+  <text x="735" y="295" text-anchor="middle">Controllers / Minimal APIs</text>
+
+  <path d="M430 289 H558" class="request"/>
+  <text x="494" y="331" text-anchor="middle" style="font-size:13px">IWebAppHost.DispatchAsync</text>
+
+  <rect x="398" y="410" width="204" height="38" rx="6" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="500" y="434" text-anchor="middle">Azure Functions Host</text>
+  <path d="M500 410 V386 H255 V312" class="request"/>
+</svg>
